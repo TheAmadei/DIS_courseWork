@@ -84,7 +84,7 @@ class ImageService(image_service_pb2_grpc.ImageServiceServicer):
         score = cv2.compareHist(hist_bw, hist_bw_compare, cv2.HISTCMP_CORREL)
 
         # Установка порога для соответствия
-        threshold = 0.5  # Этот порог может быть настроен в зависимости от требований
+        threshold = 0.9  # Этот порог может быть настроен в зависимости от требований
 
         if score > threshold:
             logging.info(f"Images match with a score of {score}")
