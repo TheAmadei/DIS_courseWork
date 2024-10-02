@@ -5,6 +5,7 @@ import io
 import image_service_pb2
 import image_service_pb2_grpc
 from PIL import Image, ImageTk
+import socket
 
 class ImageComparisonApp:
     def __init__(self, master):
@@ -104,35 +105,52 @@ class ImageComparisonApp:
             messagebox.showwarning("Предупреждение", "Пожалуйста, загрузите цветное и черно-белые изображения!")
             return
 
-        # Подготовка изображений для gRPC
+        # Подготовка изображений для TCP
         try:
+            # Сериализация цветного изображения
             color_image_bytes = io.BytesIO()
             self.color_image.save(color_image_bytes, format='PNG')
             color_image_data = color_image_bytes.getvalue()
 
+            # Сериализация черно-белых изображений
             bw_images_data = []
             for bw_image in self.bw_images:
                 bw_image_bytes = io.BytesIO()
                 bw_image.save(bw_image_bytes, format='PNG')
                 bw_images_data.append(bw_image_bytes.getvalue())
 
-            # Подключение к gRPC серверу и отправка запроса
-            with grpc.insecure_channel('localhost:50051') as channel:
-                stub = image_service_pb2_grpc.ImageServiceStub(channel)
-                request = image_service_pb2.CompareRequest(color_image=color_image_data, bw_images=bw_images_data)
-                response = stub.CompareImages(request)
+            # Подключение к TCP серверу и отправка запросов
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.connect(('localhost', 5000))
+                # Отправляем размер цветного изображения
+                s.sendall(len(color_image_data).to_bytes(4, 'big'))
+                # Отправляем цветное изображение
+                s.sendall(color_image_data)
+
+                # Отправляем черно-белые изображения
+                for bw_image_data in bw_images_data:
+                    s.sendall(len(bw_image_data).to_bytes(4, 'big'))
+                    s.sendall(bw_image_data)
+
+                # Отправляем сигнал окончания передачи черно-белых изображений
+                s.sendall((0).to_bytes(4, 'big'))
+
+                # Получаем индекс соответствующего черно-белого изображения
+                matching_index_bytes = s.recv(4)
+                matching_index = int.from_bytes(matching_index_bytes, 'big') - 1  # Корректируем индекс
 
             # Отображение результатов
-            if response.matching_index >= 0:
-                matching_bw_image = self.bw_images[response.matching_index]
+            if matching_index >= 0:
+                matching_bw_image = self.bw_images[matching_index]
                 self.show_image(self.matched_bw_label, matching_bw_image)
-                messagebox.showinfo("Результат", f"Совпадение найдено с изображением под индексом: {response.matching_index}")
+                messagebox.showinfo("Результат", f"Совпадение найдено с изображением под индексом: {matching_index}")
             else:
                 self.matched_bw_label.config(image='', text='')  # Убираем изображение, если совпадений нет
-                messagebox.showinfo("Результат", "Совпадений черно-белого изображения не найдено.")
+                messagebox.showinfo("Результат", "Совпадений изображения в черно-белом варианте не найдено.")
 
         except Exception as e:
             messagebox.showerror("Ошибка", f"Произошла ошибка: {e}")
+
 
     def show_image(self, label, image):
         """Отобразить изображение в указанной метке."""
