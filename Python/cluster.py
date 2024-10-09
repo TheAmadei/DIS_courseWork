@@ -102,4 +102,4 @@ def start_grpc_server(ip, port):
 
 if __name__ == '__main__':
     # Пример использования: запуск кластера на определенном IP и порту
-    start_grpc_server('localhost', 50051)
+    start_grpc_server('192.168.56.1', 50051)

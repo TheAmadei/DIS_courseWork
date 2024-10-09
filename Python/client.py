@@ -121,7 +121,7 @@ class ImageComparisonApp:
 
             # Подключение к TCP серверу и отправка запросов
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                s.connect(('localhost', 5000))
+                s.connect(('192.168.56.1', 5000))
                 # Отправляем размер цветного изображения
                 s.sendall(len(color_image_data).to_bytes(4, 'big'))
                 # Отправляем цветное изображение

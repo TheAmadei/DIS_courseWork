@@ -35,7 +35,7 @@ def start_tcp_server():
     clusters = load_config()["clusters"]
 
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind(('0.0.0.0', 5000))
+        s.bind(('192.168.56.1', 5000))
         s.listen()
         logging.info("TCP сервер запущен на порту 5000")
         
