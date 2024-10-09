@@ -14,51 +14,51 @@ logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %
 
 class ImageService(image_service_pb2_grpc.ImageServiceServicer):
     def CompareImages(self, request, context):
-        logging.debug("Received CompareImages request")
+        logging.debug("Получен запрос CompareImages")
 
         # Получаем цветное изображение
         try:
             color_image = Image.open(io.BytesIO(request.color_image)).convert('RGB')
             color_array = np.array(color_image)
-            logging.debug("Color image received and converted to array")
+            logging.debug("Цветное изображение получено и преобразовано в массив")
         except Exception as e:
-            logging.error(f"Error processing color image: {e}")
+            logging.error(f"Ошибка обработки цветного изображения: {e}")
             return image_service_pb2.CompareResponse(matching_index=-1)
 
         # Преобразуем цветное изображение в черно-белое
         try:
             bw_image = cv2.cvtColor(color_array, cv2.COLOR_RGB2GRAY)
-            logging.debug("Converted color image to black-and-white")
+            logging.debug("Цветное изображение преобразовано в черно-белое")
         except Exception as e:
-            logging.error(f"Error converting color image to black-and-white: {e}")
+            logging.error(f"Ошибка преобразования цветного изображения в черно-белое: {e}")
             return image_service_pb2.CompareResponse(matching_index=-1)
 
         # Сравнение с черно-белыми изображениями из запроса
         matching_index = -1
         for index, bw_image_bytes in enumerate(request.bw_images):
             try:
-                logging.debug(f"Comparing with black-and-white image at index {index}")
+                logging.debug(f"Сравнение с черно-белым изображением с индексом {index}")
                 bw_array = Image.open(io.BytesIO(bw_image_bytes)).convert('L')
                 bw_array_resized = np.array(bw_array)
 
                 # Изменение размера черно-белого изображения до размеров цветного изображения
                 bw_array_resized = cv2.resize(bw_array_resized, (color_array.shape[1], color_array.shape[0]))
 
-                # Проверяем размеры
-                logging.debug(f"Color image size: {color_array.shape}, BW image size: {bw_array_resized.shape}")
+                # Проверка размеров изображений
+                logging.debug(f"Размер цветного изображения: {color_array.shape}, размер черно-белого: {bw_array_resized.shape}")
                 if color_array.shape[0] != bw_array_resized.shape[0] or color_array.shape[1] != bw_array_resized.shape[1]:
-                    logging.warning(f"Image sizes do not match: color {color_array.shape}, bw {bw_array_resized.shape}")
-                    continue  # Пропускаем это изображение, если размеры не совпадают
+                    logging.warning(f"Размеры изображений не совпадают: цветное {color_array.shape}, ч/б {bw_array_resized.shape}")
+                    continue
 
                 # Сравнение изображений
                 if self.compare_images(bw_image, bw_array_resized):
                     matching_index = index
-                    logging.debug(f"Match found with black-and-white image at index {matching_index}")
+                    logging.debug(f"Соответствие найдено с черно-белым изображением под индексом {matching_index}")
                     break
             except Exception as e:
-                logging.error(f"Error processing black-and-white image at index {index}: {e}")
+                logging.error(f"Ошибка обработки черно-белого изображения под индексом {index}: {e}")
 
-        logging.debug("Finished processing images, returning response")
+        logging.debug("Обработка изображений завершена, отправка ответа")
         return image_service_pb2.CompareResponse(matching_index=matching_index)
 
     def compare_images(self, bw_image, bw_image_to_compare):
@@ -68,7 +68,7 @@ class ImageService(image_service_pb2_grpc.ImageServiceServicer):
 
         # Проверяем, что размеры изображений совпадают
         if bw_image.shape[:2] != bw_image_to_compare.shape[:2]:
-            logging.warning(f"Image sizes do not match: bw {bw_image.shape}, bw_compare {bw_image_to_compare.shape}")
+            logging.warning(f"Размеры изображений не совпадают: bw {bw_image.shape}, bw_compare {bw_image_to_compare.shape}")
             return False
 
         # Вычисление гистограмм
@@ -86,19 +86,20 @@ class ImageService(image_service_pb2_grpc.ImageServiceServicer):
         threshold = 0.9  # Этот порог может быть настроен в зависимости от требований
 
         if score > threshold:
-            logging.info(f"Images match with a score of {score}")
+            logging.info(f"Изображения совпадают с оценкой {score}")
             return True
         else:
-            logging.info(f"No match. Score: {score}")
+            logging.info(f"Изображения не совпадают. Оценка: {score}")
             return False
 
-def start_grpc_server():
+def start_grpc_server(ip, port):
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     image_service_pb2_grpc.add_ImageServiceServicer_to_server(ImageService(), server)
-    server.add_insecure_port('[::]:50051')
+    server.add_insecure_port(f'{ip}:{port}')
     server.start()
-    logging.info("gRPC сервер запущен на порту 50051")
+    logging.info(f"gRPC сервер запущен на {ip}:{port}")
     server.wait_for_termination()
 
 if __name__ == '__main__':
-    start_grpc_server()
+    # Пример использования: запуск кластера на определенном IP и порту
+    start_grpc_server('localhost', 50051)
