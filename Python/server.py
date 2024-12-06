@@ -24,7 +24,6 @@ def find_available_cluster(clusters):
             # Возвращаем открытый канал и stub, не закрываем его сразу
             channel = grpc.insecure_channel(f'{ip}:{port}')
             stub = image_service_pb2_grpc.ImageServiceStub(channel)
-            # Можно проверить доступность с помощью health-check или ping
             return channel, stub, ip, port
         except Exception as e:
             logging.error(f"Кластер {ip}:{port} недоступен: {e}")
