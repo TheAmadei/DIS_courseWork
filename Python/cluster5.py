@@ -93,10 +93,10 @@ class ImageService(image_service_pb2_grpc.ImageServiceServicer):
             return False
 
 def start_grpc_server(ip, port):
-    # Устанавливаем лимиты на отправляемые и принимаемые сообщения (100 МБ)
+    # Устанавливаем лимиты на отправляемые и принимаемые сообщения (50 МБ)
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10), options=[
-        ('grpc.max_send_message_length', 100 * 1024 * 1024),
-        ('grpc.max_receive_message_length', 100 * 1024 * 1024)
+        ('grpc.max_send_message_length', 50 * 1024 * 1024),  # Увеличиваем до 50 МБ
+        ('grpc.max_receive_message_length', 50 * 1024 * 1024)  # Увеличиваем до 50 МБ
     ])
     image_service_pb2_grpc.add_ImageServiceServicer_to_server(ImageService(), server)
     server.add_insecure_port(f'{ip}:{port}')
@@ -106,4 +106,4 @@ def start_grpc_server(ip, port):
 
 if __name__ == '__main__':
     # запуск кластера на определенном IP и порту
-    start_grpc_server('192.168.159.12', 50051)
+    start_grpc_server('192.168.159.12', 50055)

@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+package imageprocessing;
+
+service ImageService {
+    rpc CompareImages(CompareRequest) returns (CompareResponse);
+    rpc Ping(PingRequest) returns (PingResponse);  
+}
+
+message CompareRequest {
+    bytes color_image = 1;
+    repeated bytes bw_images = 2;
+}
+
+message CompareResponse {
+    int32 matching_index = 1;
+}
+
+
+message PingRequest {
+    
+}
+
+message PingResponse {
+    string message = 1;
+}

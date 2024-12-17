@@ -17,17 +17,22 @@ def load_config():
 
 # Функция для поиска свободного кластера
 def find_available_cluster(clusters):
+    available_clusters = []
     for cluster in clusters:
         ip = cluster["ip"]
         port = cluster["port"]
         try:
-            # Возвращаем открытый канал и stub, не закрываем его сразу
+            # Попытка подключения к кластеру
             channel = grpc.insecure_channel(f'{ip}:{port}')
             stub = image_service_pb2_grpc.ImageServiceStub(channel)
-            return channel, stub, ip, port
+            # Если кластер доступен, добавляем его в список
+            available_clusters.append((ip, port, channel, stub))
+            logging.info(f"Кластер {ip}:{port} доступен.")
         except Exception as e:
             logging.error(f"Кластер {ip}:{port} недоступен: {e}")
-    return None, None, None, None
+            continue
+
+    return available_clusters
 
 # Функция для разбиения черно-белых изображений между кластерами
 def distribute_bw_images(bw_images, num_clusters):
@@ -55,44 +60,73 @@ def process_images(color_image_data, bw_images, clusters):
     :return: Итоговый индекс совпадающего изображения.
     """
     num_clusters = len(clusters)
-    parts = distribute_bw_images(bw_images, num_clusters)
+    num_images = len(bw_images)
+
+    # Разделяем изображения между кластерами
+    num_images_per_cluster = num_images // num_clusters
+    remaining_images = num_images % num_clusters  # Оставшиеся изображения
+
+    # Массив частей изображений для каждого кластера
+    parts = []
+    start_idx = 0
+    for i in range(num_clusters):
+        end_idx = start_idx + num_images_per_cluster + (1 if i < remaining_images else 0)
+        parts.append(bw_images[start_idx:end_idx])
+        start_idx = end_idx
+
     results = []
 
-    for i, part in enumerate(parts):
-        channel, stub, ip, port = find_available_cluster(clusters)
-        if not stub:
-            logging.error(f"Кластер {ip}:{port} недоступен для части {i}")
-            continue
+    # Находим доступные кластеры
+    available_clusters = find_available_cluster(clusters)
+    
+    # Если кластеры доступны, начинаем обработку
+    if not available_clusters:
+        logging.error("Нет доступных кластеров для обработки.")
+        return -1  # Возвращаем -1, если кластеры недоступны
+    
+    # Переменная для подсчета числа отправленных изображений на каждый кластер
+    images_processed_before = 0
 
+    # Обрабатываем каждую часть для каждого кластера
+    for i, part in enumerate(parts):
+        # Используем один из доступных кластеров для обработки
+        # Выбираем кластер по индексу, обеспечивая цикличность распределения
+        ip, port, channel, stub = available_clusters[i % len(available_clusters)]
         try:
             # Формируем запрос с частью черно-белых изображений
             request = image_service_pb2.CompareRequest(color_image=color_image_data, bw_images=part)
             logging.debug(f"Отправка части {i} на кластер {ip}:{port}")
             response = stub.CompareImages(request)
             logging.debug(f"Ответ от кластера {ip}:{port}: {response.matching_index}")
-            results.append((response.matching_index, i, len(part), ip, port))  # Храним результаты
+            
+            # Если найдено совпадение, сохраняем индекс, учитывая смещение
+            if response.matching_index >= 0:
+                adjusted_index = response.matching_index + images_processed_before + 1
+                results.append(adjusted_index)
+            
+            # Увеличиваем общее количество обработанных изображений
+            images_processed_before += len(part)
         except Exception as e:
             logging.error(f"Ошибка при обработке части {i} на {ip}:{port}: {e}")
         finally:
             if channel:
                 channel.close()
 
-    # Сводим результаты
-    final_index = -1
-    for match_index, part_index, part_size, ip, port in results:
-        if match_index >= 0:
-            # Корректируем индекс с учетом смещения и добавляем 1
-            final_index = match_index + part_index * part_size + 1
-            break
+    # Если совпадений не было, возвращаем -1
+    if not results:
+        return -1
 
-    return final_index
+    # Возвращаем первый найденный индекс совпадения
+    return min(results)
+
+
 
 def start_tcp_server():
     # Загрузка конфигурации кластеров
     clusters = load_config()["clusters"]
 
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind(('192.168.56.1', 5000))
+        s.bind(('192.168.159.12', 5000))
         s.listen()
         logging.info("TCP сервер запущен на порту 5000")
         

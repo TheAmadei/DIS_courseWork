@@ -6,6 +6,7 @@ import image_service_pb2
 import image_service_pb2_grpc
 from PIL import Image, ImageTk
 import socket
+import time
 
 class ImageComparisonApp:
     def __init__(self, master):
@@ -105,6 +106,8 @@ class ImageComparisonApp:
             messagebox.showwarning("Предупреждение", "Пожалуйста, загрузите цветное и черно-белые изображения!")
             return
 
+        start_time = time.time()
+        
         # Подготовка изображений для TCP
         try:
             # Сериализация цветного изображения
@@ -121,7 +124,7 @@ class ImageComparisonApp:
 
             # Подключение к TCP серверу и отправка запросов
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                s.connect(('192.168.56.1', 5000))
+                s.connect(('192.168.159.12', 5000))
                 # Отправляем размер цветного изображения
                 s.sendall(len(color_image_data).to_bytes(4, 'big'))
                 # Отправляем цветное изображение
@@ -141,10 +144,14 @@ class ImageComparisonApp:
 
             # Отображение результатов
             if matching_index >= 0:
+                end_time = time.time()
+                # Рассчитываем время выполнения в миллисекундах
+                execution_time_ms = (end_time - start_time) * 1000
                 matching_bw_image = self.bw_images[matching_index]
                 self.show_image(self.matched_bw_label, matching_bw_image)
-                messagebox.showinfo("Результат", f"Совпадение найдено с изображением под индексом: {matching_index}")
+                messagebox.showinfo("Результат", f"Совпадение найдено с изображением под индексом: {matching_index}. Время выполнения сравнения изображений: {execution_time_ms:.2f} мс")
             else:
+                end_time = time.time()
                 self.matched_bw_label.config(image='', text='')  # Убираем изображение, если совпадений нет
                 messagebox.showinfo("Результат", "Совпадений изображения в черно-белом варианте не найдено.")
 
